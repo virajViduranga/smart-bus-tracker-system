@@ -1,0 +1,47 @@
+body {
+    background-color: #f3f4f6;
+    font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide scrollbar for clean mobile look */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Mobile Container */
+#app-container {
+    max-width: 450px; 
+    margin: 0 auto;
+    background-color: white;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+/* Map Container */
+#map {
+    height: 250px;
+    width: 100%;
+    z-index: 1;
+}
+
+/* Timeline Styles */
+.timeline-line {
+    position: absolute;
+    left: 24px;
+    top: 10px;
+    bottom: 0;
+    width: 2px;
+    background-color: #e5e7eb;
+    z-index: 0;
+}
+
+.animate-pulse-custom {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
