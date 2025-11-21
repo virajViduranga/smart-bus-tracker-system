@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BusLink Sri Lanka</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: '#2563eb', // Royal Blue
+                        accent: '#fbbf24', // Amber
+                        success: '#22c55e',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Hide scrollbar for clean mobile look */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Mobile Container */
+        #app-container {
+            max-width: 450px; /* Constrain to mobile width on desktop */
+            margin: 0 auto;
+            background-color: white;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* Map Container */
+        #map {
+            height: 250px;
+            width: 100%;
+            z-index: 1;
+        }
+
+        /* Timeline Styles */
+        .timeline-line {
+            position: absolute;
+            left: 24px;
+            top: 10px;
+            bottom: 0;
+            width: 2px;
+            background-color: #e5e7eb;
+            z-index: 0;
+        }
+        
+        .animate-pulse-custom {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- Dynamic Content Rendered Here -->
+        <div id="app-content"></div>
+    </div>
+
+    <!-- Leaflet Map JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // --- MOCK DATA & STATE ---
+        const state = {
+            currentPage: 'login', // login, home, search_results, bus_detail
+            user: null,
+            currentLocation: "Borella Junction",
+            searchQuery: "",
+            selectedBus: null
+        };
+
+        // Mock Bus Data (Scenario: Borella -> NIBM)
+        const mockBuses = [
+            {
+                id: '154',
+                routeNo: '154',
+                start: 'Kiribathgoda',
+                end: 'Angulana',
+                direction: 'Angulana',
+                currentLocation: 'Near ODEL, Alexandra Place',
+                nextStop: 'Town Hall',
+                destStop: 'NIBM Vijayarama',
+                eta: '8 mins',
+                crowdLevel: 'Crowded', // Not Crowded, Crowded, Very Crowded
+                seats: 4,
+                peopleCount: 42,
+                stops: [
+                    { name: 'Borella Junction', status: 'passed', time: '10:00 AM' },
+                    { name: 'Town Hall', status: 'upcoming', time: '10:12 AM' },
+                    { name: 'Torrington', status: 'upcoming', time: '10:20 AM' },
+                    { name: 'Thimbirigasyaya', status: 'upcoming', time: '10:28 AM' },
+                    { name: 'NIBM Vijayarama', status: 'destination', time: '10:45 AM' }
+                ],
+                lat: 6.9147, 
+                lng: 79.8696 // Colombo approximate
+            },
+            {
+                id: '177',
+                routeNo: '177',
+                start: 'Kaduwela',
+                end: 'Kollupitiya',
+                direction: 'Kollupitiya',
+                eta: '25 mins',
+                crowdLevel: 'Very Crowded',
+                stops: [],
+                lat: 6.9000,
+                lng: 79.8500
+            }
+        ];
+
+        // --- DOM ELEMENTS ---
+        const appContent = document.getElementById('app-content');
+
+        // --- NAVIGATION FUNCTIONS ---
+        function navigateTo(page, data = null) {
+            state.currentPage = page;
+            if (data) state.selectedBus = data;
+            render();
+        }
+
+        function login() {
+            state.user = { name: "Kasun", email: "kasun@example.com" };
+            navigateTo('home');
+        }
+
+        function performSearch(query) {
+            state.searchQuery = query;
+            // In a real app, this would call Google Maps API & Firebase
+            navigateTo('search_results');
+        }
+
+        // --- RENDER FUNCTIONS ---
+
+        function render() {
+            appContent.innerHTML = ''; // Clear current content
+
+            switch (state.currentPage) {
+                case 'login':
+                    renderLogin();
+                    break;
+                case 'home':
+                    renderHome();
+                    break;
+                case 'search_results':
+                    renderSearchResults();
+                    break;
+                case 'bus_detail':
+                    renderBusDetail();
+                    break;
+            }
+        }
+
+        // 1. LOGIN / SIGNUP UI
+        function renderLogin() {
+            appContent.innerHTML = `
+                <div class="flex flex-col h-screen justify-center px-8 bg-brand text-white">
+                    <div class="mb-10 text-center">
+                        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white text-brand mb-4 shadow-lg">
+                            <i class="fas fa-bus text-4xl"></i>
+                        </div>
+                        <h1 class="text-3xl font-bold">BusLink</h1>
+                        <p class="text-blue-100 mt-2">Sri Lanka's Real-time Transit</p>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-2xl shadow-xl text-gray-800">
+                        <h2 class="text-2xl font-bold mb-6 text-center">Welcome Back</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                                <input type="tel" placeholder="07X XXX XXXX" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:outline-none bg-gray-50">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input type="password" placeholder="••••••••" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand focus:outline-none bg-gray-50">
+                            </div>
+                            <button onclick="login()" class="w-full bg-brand text-white font-bold py-4 rounded-xl shadow-md active:scale-95 transition-transform">
+                                Login
+                            </button>
+                            <div class="text-center text-sm text-gray-500 mt-4">
+                                Don't have an account? <span class="text-brand font-bold cursor-pointer">Sign Up</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 2. HOME / SEARCH UI
+        function renderHome() {
+            appContent.innerHTML = `
+                <div class="flex flex-col min-h-screen bg-gray-50">
+                    <!-- Header -->
+                    <div class="bg-brand text-white px-6 pt-12 pb-16 rounded-b-[2.5rem] shadow-lg relative z-10">
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <p class="text-blue-200 text-sm">Current Location</p>
+                                <div class="flex items-center gap-2 font-semibold text-lg">
+                                    <i class="fas fa-map-marker-alt text-accent"></i>
+                                    ${state.currentLocation}
+                                </div>
+                            </div>
+                            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold border-2 border-blue-400">
+                                K
+                            </div>
+                        </div>
+                        
+                        <h1 class="text-2xl font-bold mb-6">Where do you want<br>to go today?</h1>
+
+                        <!-- Search Box -->
+                        <div class="bg-white p-2 rounded-xl shadow-xl flex items-center">
+                            <div class="pl-4 text-gray-400">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <input id="searchInput" type="text" placeholder="Try 'NIBM Vijayarama'..." 
+                                class="w-full p-3 outline-none text-gray-800 font-medium"
+                                value="${state.searchQuery}">
+                        </div>
+                        <button onclick="performSearch(document.getElementById('searchInput').value)" class="mt-3 w-full bg-accent text-brand font-bold py-2 rounded-lg shadow hover:bg-yellow-400 transition">
+                            Find Bus
+                        </button>
+                    </div>
+
+                    <!-- Recent Places -->
+                    <div class="px-6 py-8 flex-1">
+                        <h3 class="text-gray-800 font-bold mb-4">Recent Places</h3>
+                        <div class="space-y-3">
+                            <div onclick="document.getElementById('searchInput').value = 'NIBM Vijayarama'" class="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm active:bg-gray-100 cursor-pointer border border-gray-100">
+                                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand">
+                                    <i class="fas fa-university"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-800">NIBM Vijayarama</p>
+                                    <p class="text-xs text-gray-500">Education Institute</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm active:bg-gray-100 border border-gray-100">
+                                <div class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                                    <i class="fas fa-shopping-bag"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-gray-800">Majestic City</p>
+                                    <p class="text-xs text-gray-500">Shopping Mall</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 3. SEARCH RESULTS LIST
+        function renderSearchResults() {
+            const isTargetRoute = state.searchQuery.toLowerCase().includes('nibm');
+            
+            appContent.innerHTML = `
+                <div class="flex flex-col min-h-screen bg-gray-50">
+                    <!-- Top Bar -->
+                    <div class="bg-white px-4 py-4 shadow-sm flex items-center gap-4 sticky top-0 z-20">
+                        <button onclick="navigateTo('home')" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
+                            <i class="fas fa-arrow-left text-gray-600"></i>
+                        </button>
+                        <div>
+                            <p class="text-xs text-gray-400">To</p>
+                            <p class="font-bold text-gray-800">${state.searchQuery || 'NIBM Vijayarama'}</p>
+                        </div>
+                    </div>
+
+                    <!-- Suggestions -->
+                    <div class="p-4">
+                        <p class="text-sm text-gray-500 mb-3">Recommended Routes</p>
+                        
+                        <!-- Bus 154 Card -->
+                        <div onclick="navigateTo('bus_detail', mockBuses[0])" class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-brand mb-4 active:scale-95 transition-transform cursor-pointer relative overflow-hidden">
+                            ${isTargetRoute ? '<div class="absolute top-0 right-0 bg-green-500 text-white text-xs px-2 py-1 rounded-bl-lg font-bold">BEST MATCH</div>' : ''}
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="bg-brand text-white font-bold text-xl px-3 py-1 rounded-lg shadow-sm">
+                                        154
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-gray-800 text-lg">Angulana</p>
+                                        <p class="text-xs text-gray-500">via Town Hall, Thimbirigasyaya</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-green-600 font-bold text-lg">8 min</p>
+                                    <p class="text-xs text-gray-400">Arrival</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+                                <div class="flex items-center gap-2 text-sm text-gray-600">
+                                    <i class="fas fa-walking"></i>
+                                    <span>200m to stop</span>
+                                </div>
+                                <div class="flex items-center gap-1 text-sm text-orange-500 font-medium">
+                                    <i class="fas fa-users"></i>
+                                    <span>Crowded</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Other Bus Card -->
+                        <div class="bg-white rounded-2xl p-5 shadow-md border-l-4 border-gray-300 mb-4 opacity-75">
+                             <div class="flex justify-between items-start mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="bg-gray-700 text-white font-bold text-xl px-3 py-1 rounded-lg shadow-sm">
+                                        138
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-gray-800 text-lg">Homagama</p>
+                                        <p class="text-xs text-gray-500">Requires Transfer</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-sm text-gray-500">
+                                Not the best route for NIBM
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 4. BUS DETAIL UI (The complex view)
+        function renderBusDetail() {
+            const bus = state.selectedBus;
+            let crowdColor = 'text-green-500';
+            let crowdBg = 'bg-green-100';
+            let crowdIcon = 'fa-user';
+            
+            if(bus.crowdLevel === 'Crowded') {
+                crowdColor = 'text-orange-500';
+                crowdBg = 'bg-orange-100';
+                crowdIcon = 'fa-users';
+            } else if (bus.crowdLevel === 'Very Crowded') {
+                crowdColor = 'text-red-500';
+                crowdBg = 'bg-red-100';
+                crowdIcon = 'fa-users-slash';
+            }
+
+            appContent.innerHTML = `
+                <div class="flex flex-col h-screen bg-white">
+                    <!-- Header -->
+                    <div class="bg-brand text-white px-4 pt-4 pb-6 rounded-b-3xl shadow-lg z-20">
+                        <div class="flex items-center justify-between mb-4">
+                            <button onclick="navigateTo('search_results')" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-700 transition">
+                                <i class="fas fa-arrow-left"></i>
+                            </button>
+                            <h2 class="font-bold text-lg">Live Tracking</h2>
+                            <button class="w-8 h-8 flex items-center justify-center"><i class="fas fa-share-alt"></i></button>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="flex items-center gap-3 mb-1">
+                                    <span class="text-3xl font-bold bg-white text-brand px-2 rounded">${bus.routeNo}</span>
+                                    <span class="text-xl font-medium">${bus.direction}</span>
+                                </div>
+                                <p class="text-blue-200 text-sm flex items-center gap-1">
+                                    <i class="fas fa-map-marker-alt"></i> Next Stop: ${bus.nextStop}
+                                </p>
+                            </div>
+                            <div class="text-center bg-blue-700 px-3 py-2 rounded-xl">
+                                <p class="text-xs text-blue-200">ETA</p>
+                                <p class="text-2xl font-bold text-accent">${bus.eta}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto no-scrollbar relative">
+                        
+                        <!-- Status Cards (Crowd & Estimations) -->
+                        <div class="grid grid-cols-2 gap-4 px-4 -mt-4 relative z-30">
+                            <div class="bg-white p-3 rounded-xl shadow-md flex flex-col items-center justify-center text-center border border-gray-100">
+                                <div class="w-8 h-8 rounded-full ${crowdBg} ${crowdColor} flex items-center justify-center mb-2">
+                                    <i class="fas ${crowdIcon}"></i>
+                                </div>
+                                <p class="font-bold text-gray-800 text-sm">${bus.crowdLevel}</p>
+                                <p class="text-xs text-gray-400">${bus.peopleCount} passengers</p>
+                            </div>
+                            <div class="bg-white p-3 rounded-xl shadow-md flex flex-col items-center justify-center text-center border border-gray-100">
+                                <div class="w-8 h-8 rounded-full bg-blue-50 text-brand flex items-center justify-center mb-2">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <p class="font-bold text-gray-800 text-sm">On Time</p>
+                                <p class="text-xs text-gray-400">GPS Signal: Good</p>
+                            </div>
+                        </div>
+
+                        <!-- Route Timeline -->
+                        <div class="px-6 py-6">
+                            <h3 class="font-bold text-gray-800 mb-4">Route Timeline</h3>
+                            <div class="relative pl-2">
+                                <!-- Vertical Line -->
+                                <div class="timeline-line"></div>
+                                
+                                <!-- Stops -->
+                                <div class="space-y-6 relative z-10">
+                                    ${bus.stops.map((stop, index) => {
+                                        let colorClass = 'bg-gray-300 border-gray-100'; // Default future
+                                        let textClass = 'text-gray-400';
+                                        let icon = '';
+                                        
+                                        if (stop.status === 'passed') {
+                                            colorClass = 'bg-gray-400 border-gray-200';
+                                        } else if (stop.name === 'Town Hall') { // Simulate Bus current position
+                                            colorClass = 'bg-brand border-blue-200 ring-4 ring-blue-100 animate-pulse-custom';
+                                            textClass = 'text-gray-800 font-bold';
+                                            icon = '<i class="fas fa-bus text-white text-[10px]"></i>';
+                                        } else if (stop.status === 'destination') {
+                                            colorClass = 'bg-red-500 border-red-200';
+                                            textClass = 'text-gray-800 font-bold';
+                                            icon = '<i class="fas fa-flag-checkered text-white text-[10px]"></i>';
+                                        }
+
+                                        return `
+                                        <div class="flex items-start gap-4">
+                                            <div class="w-8 flex-shrink-0 flex justify-center">
+                                                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${colorClass}">
+                                                    ${icon}
+                                                </div>
+                                            </div>
+                                            <div class="flex-1 pb-2 border-b border-gray-50">
+                                                <p class="text-sm ${textClass}">${stop.name}</p>
+                                                <p class="text-xs text-gray-400">${stop.time}</p>
+                                            </div>
+                                        </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Map Section -->
+                        <div class="px-4 pb-24">
+                            <h3 class="font-bold text-gray-800 mb-2">Live Map</h3>
+                            <div class="rounded-2xl overflow-hidden shadow-inner border border-gray-200 relative">
+                                <div id="map"></div>
+                                <div class="absolute bottom-2 right-2 bg-white px-2 py-1 rounded shadow text-xs font-bold z-[500] text-gray-600">
+                                    Live GPS
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Action (Buy Ticket / Reserve) -->
+                    <div class="absolute bottom-0 w-full bg-white border-t border-gray-100 p-4 shadow-lg z-40">
+                        <button class="w-full bg-brand text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+                            <i class="fas fa-ticket-alt"></i> Select Bus & View Stops
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Initialize Map after DOM is updated
+            setTimeout(initMap, 100);
+        }
+
+        // --- MAP INITIALIZATION ---
+        function initMap() {
+            // Colombo Coordinates
+            const map = L.map('map', {
+                zoomControl: false, // Simplify UI
+                dragging: false, // Keep static for this view
+                scrollWheelZoom: false
+            }).setView([6.9147, 79.8696], 14);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap, &copy; CartoDB'
+            }).addTo(map);
+
+            // Custom Icons
+            const busIcon = L.divIcon({
+                html: '<div class="w-8 h-8 bg-brand rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white"><i class="fas fa-bus"></i></div>',
+                className: 'bg-transparent',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+            });
+
+            const stopIcon = L.divIcon({
+                html: '<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow"></div>',
+                className: 'bg-transparent',
+                iconSize: [16, 16]
+            });
+
+            // Add Bus Marker
+            L.marker([6.9147, 79.8696], {icon: busIcon}).addTo(map)
+                .bindPopup("Bus 154 - Current Location").openPopup();
+
+            // Add Destination Marker (NIBM approx)
+            L.marker([6.8961, 79.8752], {icon: stopIcon}).addTo(map);
+
+            // Draw Path (Mock Route)
+            const latlngs = [
+                [6.9338, 79.8655], // Start
+                [6.9271, 79.8612], // Town Hall Area
+                [6.9147, 79.8696], // Current (Borella-ish)
+                [6.8961, 79.8752]  // NIBM
+            ];
+            
+            L.polyline(latlngs, {color: '#2563eb', weight: 4, dashArray: '10, 10', opacity: 0.6}).addTo(map);
+        }
+
+        // Start App
+        render();
+
+    </script>
+</body>
+</html>
