@@ -1,6 +1,6 @@
+// AIR780E Test Code for ESP32 (AT Commands)
 
-
-
+HardwareSerial AIR(1);  // Use UART1
 
 void setup() {
   Serial.begin(115200);          // Serial Monitor
@@ -11,7 +11,7 @@ void setup() {
 }
 
 void loop() {
- 
+  // Read responses from module
   while (AIR.available()) {
     Serial.write(AIR.read());
   }
