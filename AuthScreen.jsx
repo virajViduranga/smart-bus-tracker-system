@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Bus, User, Lock } from 'lucide-react'; // Icons for UI
-import Button from './Button'; // Reusable Button component
+import { Bus, User, Lock } from 'lucide-react'; 
+import Button from './Button'; 
 import Input from './Input';   
 
 const AuthScreen = ({ onLogin, onSignup, mode, setMode, error, loading }) => {
