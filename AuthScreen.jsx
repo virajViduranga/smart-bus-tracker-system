@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Bus, User, Lock } from 'lucide-react'; // Icons for UI
 import Button from './Button'; // Reusable Button component
-import Input from './Input';   // Reusable Input component
+import Input from './Input';   
 
-// AuthScreen handles login/signup UI
 const AuthScreen = ({ onLogin, onSignup, mode, setMode, error, loading }) => {
   // State for user inputs
   const [email, setEmail] = useState('');
@@ -15,7 +14,7 @@ const AuthScreen = ({ onLogin, onSignup, mode, setMode, error, loading }) => {
     if (mode === 'login') {
       onLogin(email, password);   // Call login function from parent
     } else {
-      onSignup(email, password);  // Call signup function from parent
+      onSignup(email, password); 
     }
   };
 
@@ -23,11 +22,11 @@ const AuthScreen = ({ onLogin, onSignup, mode, setMode, error, loading }) => {
     // Fullscreen gradient background container
     <div className="absolute inset-0 z-50 bg-gradient-to-br from-blue-600 to-blue-800 text-white flex flex-col justify-center px-6 overflow-hidden">
       
-      {/* Decorative blurred circles */}
+   
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
       <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl" />
 
-      {/* Centered card container */}
+      
       <div className="relative z-10 w-full max-w-md mx-auto">
         
         {/* Logo and app name */}
@@ -39,13 +38,12 @@ const AuthScreen = ({ onLogin, onSignup, mode, setMode, error, loading }) => {
           <p className="text-blue-100 text-lg opacity-90">Smart Transit for Sri Lanka</p>
         </div>
 
-        {/* Auth form card */}
         <div className="bg-white/95 backdrop-blur-xl p-8 rounded-3xl shadow-2xl text-gray-800">
           <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
             {mode === 'login' ? 'Welcome Back' : 'Create Account'}
           </h2>
 
-          {/* Display error if exists */}
+          
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-2xl flex items-center gap-2">
               <div className="w-1.5 h-1.5 bg-red-500 rounded-full" /> {/* Error indicator */}
